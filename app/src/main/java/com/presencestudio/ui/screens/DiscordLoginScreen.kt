@@ -4,8 +4,13 @@ import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import android.view.ViewGroup
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -13,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,8 +29,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.presencestudio.ui.theme.*
 
 /**
- * Discord login via WebView (same UX style as Chevstrap / Apexstrap).
- * User logs in with email + password, then the app extracts the token.
+ * Discord login via WebView.
+ * Improved settings to reduce white-screen issues on modern Discord pages.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -34,6 +40,7 @@ fun DiscordLoginScreen(
 ) {
     var isLoading by remember { mutableStateOf(true) }
     var statusText by remember { mutableStateOf("Loading Discord login...") }
+    var webView by remember { mutableStateOf<WebView?>(null) }
     val handler = remember { Handler(Looper.getMainLooper()) }
 
     BackHandler { onCancel() }
@@ -47,7 +54,7 @@ fun DiscordLoginScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Surface)
-                .padding(horizontal = 8.dp, vertical = 12.dp),
+                .padding(horizontal = 4.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onCancel) {
@@ -69,17 +76,57 @@ fun DiscordLoginScreen(
                     fontSize = 12.sp
                 )
             }
+            IconButton(onClick = {
+                statusText = "Refreshing..."
+                isLoading = true
+                webView?.reload()
+            }) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Refresh",
+                    tint = TextSecondary
+                )
+            }
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
             AndroidView(
                 factory = { context ->
                     WebView(context).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.databaseEnabled = true
-                        settings.userAgentString =
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+
+                        // Critical settings for Discord
+                        settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            databaseEnabled = true
+                            loadsImagesAutomatically = true
+                            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            cacheMode = WebSettings.LOAD_DEFAULT
+                            allowContentAccess = true
+                            allowFileAccess = false
+                            mediaPlaybackRequiresUserGesture = false
+                            // Use a normal Chrome mobile UA (Discord often blocks weird UAs)
+                            userAgentString =
+                                "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+                            // Important for modern sites
+                            useWideViewPort = true
+                            loadWithOverviewMode = true
+                            builtInZoomControls = false
+                            displayZoomControls = false
+                            setSupportZoom(false)
+                            // Enable cookies
+                            javaScriptCanOpenWindowsAutomatically = true
+                        }
+
+                        // Cookies (needed for Discord login session)
+                        CookieManager.getInstance().apply {
+                            setAcceptCookie(true)
+                            setAcceptThirdPartyCookies(this@apply, true)
+                        }
 
                         addJavascriptInterface(object {
                             @JavascriptInterface
@@ -97,41 +144,38 @@ fun DiscordLoginScreen(
                             }
                         }, "AndroidBridge")
 
+                        webChromeClient = WebChromeClient()
+
                         webViewClient = object : WebViewClient() {
                             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                                 isLoading = true
+                                statusText = "Loading..."
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 isLoading = false
                                 statusText = "Log in with your Discord account"
 
-                                // Inject token extraction script
                                 val extractJs = """
                                     (function() {
                                         function tryExtract() {
                                             try {
-                                                // 1. Classic localStorage
                                                 var t = window.localStorage.getItem('token');
                                                 if (t) { AndroidBridge.onTokenFound(t); return true; }
 
-                                                // 2. Search all localStorage values for token-like strings
                                                 for (var i = 0; i < localStorage.length; i++) {
                                                     var k = localStorage.key(i);
                                                     var v = localStorage.getItem(k);
                                                     if (!v) continue;
                                                     v = String(v).replace(/^"|"$/g, '');
-                                                    // Discord user tokens are long and contain dots (JWT-like)
                                                     if (v.length > 50 && v.indexOf('.') > 0 && v.split('.').length >= 3) {
                                                         AndroidBridge.onTokenFound(v);
                                                         return true;
                                                     }
                                                 }
 
-                                                // 3. Webpack module search (common in Discord web clients)
                                                 if (typeof webpackChunkdiscord_app !== 'undefined') {
                                                     var chunk = webpackChunkdiscord_app;
-                                                    // push a fake module to find the token module
                                                     chunk.push([
                                                         [Math.random()],
                                                         {},
@@ -140,7 +184,6 @@ fun DiscordLoginScreen(
                                                                 try {
                                                                     var exp = e.c[m].exports;
                                                                     if (!exp) continue;
-                                                                    // look for token getter
                                                                     if (exp.default && typeof exp.default.getToken === 'function') {
                                                                         var tok = exp.default.getToken();
                                                                         if (tok) { AndroidBridge.onTokenFound(tok); return; }
@@ -157,19 +200,28 @@ fun DiscordLoginScreen(
                                             } catch(e) {}
                                             return false;
                                         }
-
                                         tryExtract();
-                                        // Retry a few times after login redirect
-                                        setTimeout(tryExtract, 1500);
-                                        setTimeout(tryExtract, 3000);
-                                        setTimeout(tryExtract, 5000);
+                                        setTimeout(tryExtract, 2000);
+                                        setTimeout(tryExtract, 4000);
+                                        setTimeout(tryExtract, 7000);
                                     })();
                                 """.trimIndent()
 
                                 view?.evaluateJavascript(extractJs, null)
 
-                                if (url != null && (url.contains("/channels") || url.contains("/app") || url.contains("discord.com/activity"))) {
-                                    statusText = "Logged in – extracting token..."
+                                if (url != null && (url.contains("/channels") || url.contains("/app") || url.contains("/login") == false && url.contains("discord.com"))) {
+                                    statusText = "Checking login status..."
+                                }
+                            }
+
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                error: WebResourceError?
+                            ) {
+                                if (request?.isForMainFrame == true) {
+                                    statusText = "Failed to load. Try Refresh."
+                                    isLoading = false
                                 }
                             }
 
@@ -179,10 +231,13 @@ fun DiscordLoginScreen(
                             ): Boolean = false
                         }
 
+                        webView = this
+                        // Load Discord login (mobile site sometimes works better)
                         loadUrl("https://discord.com/login")
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                update = { /* keep */ }
             )
 
             if (isLoading) {
