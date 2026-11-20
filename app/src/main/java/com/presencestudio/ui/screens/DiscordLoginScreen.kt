@@ -123,10 +123,9 @@ fun DiscordLoginScreen(
                         }
 
                         // Cookies (needed for Discord login session)
-                        CookieManager.getInstance().apply {
-                            setAcceptCookie(true)
-                            setAcceptThirdPartyCookies(this@apply, true)
-                        }
+                        val cookieManager = CookieManager.getInstance()
+                        cookieManager.setAcceptCookie(true)
+                        cookieManager.setAcceptThirdPartyCookies(this@apply, true)
 
                         addJavascriptInterface(object {
                             @JavascriptInterface
