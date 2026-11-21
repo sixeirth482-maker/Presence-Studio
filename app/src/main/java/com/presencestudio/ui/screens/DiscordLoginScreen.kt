@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -74,6 +75,16 @@ fun DiscordLoginScreen(
                     text = statusText,
                     color = TextTertiary,
                     fontSize = 12.sp
+                )
+            }
+            IconButton(onClick = {
+                statusText = "Checking token..."
+                webView?.evaluateJavascript("window.__psCheck && window.__psCheck();", null)
+            }) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Check token",
+                    tint = TextSecondary
                 )
             }
             IconButton(onClick = {
@@ -157,60 +168,69 @@ fun DiscordLoginScreen(
 
                                 val extractJs = """
                                     (function() {
-                                        function tryExtract() {
+                                        if (window.__psPollInstalled) { if (window.__psCheck) window.__psCheck(); return; }
+                                        window.__psPollInstalled = true;
+                                        var sent = false;
+                                        var timer = null;
+
+                                        function send(t) {
+                                            if (sent || !t) return;
+                                            t = String(t).trim().replace(/^"+|"+$/g, '').trim();
+                                            if (t.length <= 30) return;
+                                            sent = true;
+                                            if (timer) clearInterval(timer);
+                                            AndroidBridge.onTokenFound(t);
+                                        }
+
+                                        function fromStorage() {
                                             try {
                                                 var t = window.localStorage.getItem('token');
-                                                if (t) { AndroidBridge.onTokenFound(t); return true; }
-
+                                                if (t) return t;
                                                 for (var i = 0; i < localStorage.length; i++) {
                                                     var k = localStorage.key(i);
                                                     var v = localStorage.getItem(k);
                                                     if (!v) continue;
                                                     v = String(v).replace(/^"|"$/g, '');
-                                                    if (v.length > 50 && v.indexOf('.') > 0 && v.split('.').length >= 3) {
-                                                        AndroidBridge.onTokenFound(v);
-                                                        return true;
-                                                    }
+                                                    if (v.length > 50 && v.split('.').length >= 3) return v;
                                                 }
-
-                                                if (typeof webpackChunkdiscord_app !== 'undefined') {
-                                                    var chunk = webpackChunkdiscord_app;
-                                                    chunk.push([
-                                                        [Math.random()],
-                                                        {},
-                                                        function(e) {
-                                                            for (var m in e.c) {
-                                                                try {
-                                                                    var exp = e.c[m].exports;
-                                                                    if (!exp) continue;
-                                                                    if (exp.default && typeof exp.default.getToken === 'function') {
-                                                                        var tok = exp.default.getToken();
-                                                                        if (tok) { AndroidBridge.onTokenFound(tok); return; }
-                                                                    }
-                                                                    if (typeof exp.getToken === 'function') {
-                                                                        var tok2 = exp.getToken();
-                                                                        if (tok2) { AndroidBridge.onTokenFound(tok2); return; }
-                                                                    }
-                                                                } catch(err) {}
-                                                            }
-                                                        }
-                                                    ]);
-                                                }
-                                            } catch(e) {}
-                                            return false;
+                                            } catch (e) {}
+                                            return null;
                                         }
-                                        tryExtract();
-                                        setTimeout(tryExtract, 2000);
-                                        setTimeout(tryExtract, 4000);
-                                        setTimeout(tryExtract, 7000);
+
+                                        function fromWebpack() {
+                                            try {
+                                                if (typeof webpackChunkdiscord_app === 'undefined') return null;
+                                                var found = null;
+                                                webpackChunkdiscord_app.push([[Math.random()], {}, function(req) {
+                                                    for (var m in req.c) {
+                                                        try {
+                                                            var exp = req.c[m].exports;
+                                                            if (!exp) continue;
+                                                            var fn = (exp.default && exp.default.getToken) || exp.getToken;
+                                                            if (typeof fn === 'function') {
+                                                                var tok = fn();
+                                                                if (tok) { found = tok; return; }
+                                                            }
+                                                        } catch (err) {}
+                                                    }
+                                                }]);
+                                                return found;
+                                            } catch (e) { return null; }
+                                        }
+
+                                        function check() {
+                                            if (sent) return;
+                                            var t = fromStorage() || fromWebpack();
+                                            if (t) send(t);
+                                        }
+
+                                        window.__psCheck = check;
+                                        timer = setInterval(check, 1500);
+                                        check();
                                     })();
                                 """.trimIndent()
 
                                 view?.evaluateJavascript(extractJs, null)
-
-                                if (url != null && (url.contains("/channels") || url.contains("/app") || url.contains("/login") == false && url.contains("discord.com"))) {
-                                    statusText = "Checking login status..."
-                                }
                             }
 
                             override fun onReceivedError(
