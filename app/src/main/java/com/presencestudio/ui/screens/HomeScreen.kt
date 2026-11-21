@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.sp
 import com.presencestudio.MainViewModel
 import com.presencestudio.data.ActivityProfile
 import com.presencestudio.data.ConnectionState
+import com.presencestudio.ui.components.DiscordProfileCover
+import com.presencestudio.ui.components.RobloxPresenceCard
 import com.presencestudio.ui.theme.*
 
 @Composable
@@ -70,6 +72,16 @@ fun HomeScreen(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        viewModel.discordUser?.let { user ->
+            DiscordProfileCover(user = user, modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        // Roblox current game
+        RobloxPresenceCard(viewModel = viewModel)
 
         Spacer(modifier = Modifier.height(20.dp))
 
