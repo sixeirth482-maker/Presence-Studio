@@ -22,7 +22,8 @@ data class RobloxGameInfo(
     val placeId: Long?,
     val universeId: Long?,
     val gameName: String?,
-    val lastLocation: String?
+    val lastLocation: String?,
+    val thumbnailUrl: String? = null
 )
 
 /**
@@ -88,16 +89,30 @@ object RobloxPresence {
             val universeId = p["universeId"]?.jsonPrimitive?.longOrNull
             val lastLocation = p["lastLocation"]?.jsonPrimitive?.contentOrNull
 
-            val gameName = if (type == 2 && universeId != null) fetchGameName(universeId) else null
+            val info = if (type == 2 && universeId != null) gameInfo(universeId) else null
 
             return RobloxGameInfo(
                 presenceType = type,
                 placeId = placeId,
                 universeId = universeId,
-                gameName = gameName,
-                lastLocation = lastLocation
+                gameName = info?.first,
+                lastLocation = lastLocation,
+                thumbnailUrl = info?.second
             )
         }
+    }
+
+    private val gameCache = HashMap<Long, Pair<String?, String?>>()
+
+    /** คืนคู่ (ชื่อแมพ, URL รูปปกแมพ) มี cache กันยิง API ซ้ำทุกรอบ */
+    @Synchronized
+    private fun gameInfo(universeId: Long): Pair<String?, String?> {
+        gameCache[universeId]?.let { return it }
+        val name = fetchGameName(universeId)
+        val thumb = fetchGameThumbnail(universeId)
+        val result = name to thumb
+        if (name != null || thumb != null) gameCache[universeId] = result
+        return result
     }
 
     private fun fetchGameName(universeId: Long): String? {
@@ -111,6 +126,25 @@ object RobloxPresence {
             val root = json.parseToJsonElement(res.body!!.string()).jsonObject
             return root["data"]?.jsonArray?.firstOrNull()?.jsonObject
                 ?.get("name")?.jsonPrimitive?.contentOrNull
+        }
+    }
+
+    private fun fetchGameThumbnail(universeId: Long): String? {
+        val req = Request.Builder()
+            .url(
+                "https://thumbnails.roblox.com/v1/games/multiget/thumbnails" +
+                    "?universeIds=$universeId&countPerUniverse=1&defaults=true" +
+                    "&size=768x432&format=Png&isCircular=false"
+            )
+            .get()
+            .build()
+
+        client.newCall(req).execute().use { res ->
+            if (!res.isSuccessful) return null
+            val root = json.parseToJsonElement(res.body!!.string()).jsonObject
+            return root["data"]?.jsonArray?.firstOrNull()?.jsonObject
+                ?.get("thumbnails")?.jsonArray?.firstOrNull()?.jsonObject
+                ?.get("imageUrl")?.jsonPrimitive?.contentOrNull
         }
     }
 }

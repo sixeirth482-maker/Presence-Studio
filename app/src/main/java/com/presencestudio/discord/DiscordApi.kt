@@ -1,6 +1,12 @@
 package com.presencestudio.discord
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
@@ -33,6 +39,11 @@ data class DiscordUser(
 }
 
 object DiscordApi {
+
+    /** Application ID ที่ใช้แปลงรูปปกแมพเป็น media proxy (ใช้ค่าเดียวกับ Chevstrap) */
+    const val MEDIA_APP_ID = "1530730297967120534"
+
+    private val mediaCache = HashMap<String, String>()
 
     private const val BASE = "https://discord.com/api/v9"
     private const val UA =
@@ -68,6 +79,34 @@ object DiscordApi {
             banner = o["banner"]?.jsonPrimitive?.contentOrNull,
             accentColor = o["accent_color"]?.jsonPrimitive?.intOrNull
         )
+    }
+
+    /** แปลง URL รูปภาพเป็น mp:... ที่ Discord Rich Presence ใช้เป็นรูปได้ */
+    @Synchronized
+    fun fetchMediaProxy(token: String, appId: String, imageUrl: String): String? {
+        mediaCache[imageUrl]?.let { return it }
+
+        val body = buildJsonObject {
+            put("urls", buildJsonArray { add(JsonPrimitive(imageUrl)) })
+        }.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+
+        val req = Request.Builder()
+            .url("$BASE/applications/$appId/external-assets")
+            .header("Authorization", token)
+            .header("User-Agent", UA)
+            .post(body)
+            .build()
+
+        client.newCall(req).execute().use { res ->
+            if (!res.isSuccessful) return null
+            val arr = json.parseToJsonElement(res.body!!.string()).jsonArray
+            val path = arr.firstOrNull()?.jsonObject
+                ?.get("external_asset_path")?.jsonPrimitive?.contentOrNull
+                ?: return null
+            val result = "mp:$path"
+            mediaCache[imageUrl] = result
+            return result
+        }
     }
 
     /** ชื่อ Roblox ที่เชื่อมไว้กับบัญชี Discord คืน null ถ้ายังไม่ได้เชื่อม */

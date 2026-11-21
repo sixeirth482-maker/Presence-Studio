@@ -1,6 +1,10 @@
 package com.presencestudio.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -37,6 +41,53 @@ fun RobloxPresenceCard(
             fontSize = 13.sp
         )
         Spacer(modifier = Modifier.height(10.dp))
+
+        val cover = game?.thumbnailUrl
+        if (game != null && game.presenceType == 2 && cover != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .clip(RoundedCornerShape(16.dp))
+            ) {
+                AsyncImage(
+                    model = cover,
+                    contentDescription = "ปกแมพ",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Surface.copy(alpha = 0.95f)),
+                                startY = 40f
+                            )
+                        )
+                )
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = "กำลังเล่น",
+                        color = Success,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = game.gameName ?: game.lastLocation ?: "ไม่ทราบชื่อแมพ",
+                        color = TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(

@@ -181,11 +181,11 @@ class MainViewModel : ViewModel() {
             if (currentProfile != null) startPresence() else clearPresence()
             return
         }
-        applyAutoGame()
+        viewModelScope.launch { applyAutoGame() }
     }
 
     /** ตั้งสถานะ Discord เป็นชื่อแมพที่กำลังเล่น และคืนค่าเดิมเมื่อเลิกเล่น */
-    private fun applyAutoGame() {
+    private suspend fun applyAutoGame() {
         if (!autoGameStatus || discordToken.isBlank()) return
 
         val info = robloxGame
@@ -201,17 +201,23 @@ class MainViewModel : ViewModel() {
             return
         }
 
-        if (gameName == lastAutoGame) return
         lastAutoGame = gameName
 
         val base = profiles.firstOrNull { it.id == "roblox" } ?: return
         gateway.setToken(discordToken)
+        gateway.start()
+
+        val coverMp = info?.thumbnailUrl?.let { url ->
+            withContext(Dispatchers.IO) {
+                DiscordApi.fetchMediaProxy(discordToken, DiscordApi.MEDIA_APP_ID, url)
+            }
+        }
 
         val activityJson = gateway.buildActivity(
             name = "Roblox",
             details = gameName,
             state = "Roblox",
-            largeImage = base.largeImageKey,
+            largeImage = coverMp ?: base.largeImageKey,
             largeText = gameName,
             smallImage = base.smallImageKey,
             smallText = base.smallImageText,
@@ -221,7 +227,7 @@ class MainViewModel : ViewModel() {
 
         gateway.setPresence(activityJson)
         isPresenceActive = true
-        statusMessage = "กำลังเล่น $gameName"
+        statusMessage = "ส่งสถานะ Discord: กำลังเล่น $gameName"
     }
 
     fun updateToken(token: String) {
