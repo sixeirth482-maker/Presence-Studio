@@ -138,7 +138,7 @@ fun RobloxPresenceCard(
                     fontSize = 14.sp
                 )
                 Text(
-                    text = "ตั้งชื่อแมพที่กำลังเล่นเป็นสถานะ และคืนค่าเดิมเมื่อเลิกเล่น",
+                    text = "เมื่อเล่นจะแสดงชื่อแมพ เมื่อไม่ได้เล่นจะแสดงข้อความด้านล่าง",
                     color = TextTertiary,
                     fontSize = 12.sp
                 )
@@ -147,6 +147,31 @@ fun RobloxPresenceCard(
                 checked = viewModel.autoGameStatus,
                 onCheckedChange = { viewModel.toggleAutoGame(it) }
             )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        var idleInput by remember { mutableStateOf(viewModel.idleText) }
+        Text(
+            text = "ข้อความตอนไม่ได้เข้าแมพ",
+            color = TextSecondary,
+            fontSize = 13.sp
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = idleInput,
+                onValueChange = { idleInput = it },
+                singleLine = true,
+                placeholder = { Text("ไม่ได้เข้าแมพ") },
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = { viewModel.saveIdleText(idleInput) },
+                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+            ) {
+                Text("บันทึก")
+            }
         }
 
         if (viewModel.robloxStatus.isNotEmpty()) {

@@ -13,8 +13,18 @@ android {
         applicationId = "com.presencestudio"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionName = "1.0.0"
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            // keystore คงที่ใน repo ทำให้ทุก build เซ็นด้วยกุญแจเดียวกัน จึงติดตั้งทับได้โดยไม่ต้องลบแอปก่อน
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {

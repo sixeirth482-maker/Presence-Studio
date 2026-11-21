@@ -3,7 +3,9 @@ package com.presencestudio
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.presencestudio.data.ActivityProfile
 import com.presencestudio.data.ConnectionState
@@ -22,9 +24,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.UUID
 
-class MainViewModel : ViewModel() {
+class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val gateway = DiscordGateway()
+
+    private val prefs = application.getSharedPreferences("presence_studio", Context.MODE_PRIVATE)
 
     var robloxUsername by mutableStateOf("")
         private set
@@ -39,6 +43,9 @@ class MainViewModel : ViewModel() {
         private set
 
     var autoGameStatus by mutableStateOf(false)
+        private set
+
+    var idleText by mutableStateOf("ไม่ได้เข้าแมพ")
         private set
 
     private var robloxUserId: Long? = null
@@ -126,6 +133,7 @@ class MainViewModel : ViewModel() {
     fun connectRoblox(name: String) {
         val clean = name.trim()
         robloxUsername = clean
+        if (clean.isNotEmpty()) prefs.edit().putString("roblox", clean).apply()
         robloxUserId = null
         robloxGame = null
         presenceJob?.cancel()
@@ -151,7 +159,7 @@ class MainViewModel : ViewModel() {
 
             while (isActive) {
                 refreshRobloxPresence()
-                delay(30_000)
+                delay(10_000)
             }
         }
     }
@@ -172,6 +180,7 @@ class MainViewModel : ViewModel() {
 
     fun toggleAutoGame(enabled: Boolean) {
         autoGameStatus = enabled
+        prefs.edit().putBoolean("auto", enabled).apply()
         if (enabled && discordToken.isBlank()) {
             robloxStatus = "ใส่ Discord token ในหน้า Settings ก่อน จึงจะอัปเดตสถานะได้"
             return
@@ -184,30 +193,46 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch { applyAutoGame() }
     }
 
-    /** ตั้งสถานะ Discord เป็นชื่อแมพที่กำลังเล่น และคืนค่าเดิมเมื่อเลิกเล่น */
+    /** ตั้งข้อความบอกสถานะ Discord ตามแมพที่เล่นอยู่ หรือข้อความตอนไม่ได้เข้าแมพ */
+    fun saveIdleText(text: String) {
+        val clean = text.trim().ifBlank { "ไม่ได้เข้าแมพ" }
+        idleText = clean
+        prefs.edit().putString("idle", clean).apply()
+        lastAutoGame = null
+        if (autoGameStatus) viewModelScope.launch { applyAutoGame() }
+    }
+
     private suspend fun applyAutoGame() {
         if (!autoGameStatus || discordToken.isBlank()) return
 
+        val base = profiles.firstOrNull { it.id == "roblox" } ?: profiles.firstOrNull() ?: return
         val info = robloxGame
-        val gameName = if (info?.presenceType == 2) {
-            info.gameName ?: info.lastLocation
-        } else null
+        val gameName = if (info?.presenceType == 2) (info.gameName ?: info.lastLocation) else null
 
-        if (gameName.isNullOrBlank()) {
-            if (lastAutoGame != null) {
-                lastAutoGame = null
-                if (currentProfile != null) startPresence() else clearPresence()
-            }
-            return
+        val signature: String
+        val details: String
+        val cover: String?
+        val inGame: Boolean
+
+        if (!gameName.isNullOrBlank()) {
+            inGame = true
+            details = gameName
+            cover = info?.thumbnailUrl
+            signature = "game|$gameName|${cover ?: ""}"
+        } else {
+            inGame = false
+            details = idleText
+            cover = null
+            signature = "idle|$idleText"
         }
 
-        lastAutoGame = gameName
+        if (signature == lastAutoGame) return
+        lastAutoGame = signature
 
-        val base = profiles.firstOrNull { it.id == "roblox" } ?: return
         gateway.setToken(discordToken)
         gateway.start()
 
-        val coverMp = info?.thumbnailUrl?.let { url ->
+        val coverMp = cover?.let { url ->
             withContext(Dispatchers.IO) {
                 DiscordApi.fetchMediaProxy(discordToken, DiscordApi.MEDIA_APP_ID, url)
             }
@@ -215,25 +240,38 @@ class MainViewModel : ViewModel() {
 
         val activityJson = gateway.buildActivity(
             name = "Roblox",
-            details = gameName,
+            details = details,
             state = "Roblox",
             largeImage = coverMp ?: base.largeImageKey,
-            largeText = gameName,
+            largeText = details,
             smallImage = base.smallImageKey,
             smallText = base.smallImageText,
             applicationId = base.applicationId,
-            showElapsed = base.showElapsed
+            showElapsed = inGame
         )
 
         gateway.setPresence(activityJson)
         isPresenceActive = true
-        statusMessage = "ส่งสถานะ Discord: กำลังเล่น $gameName"
+        statusMessage = if (inGame) "ส่งสถานะ Discord: กำลังเล่น $details" else "ส่งสถานะ Discord: $details"
     }
 
     fun updateToken(token: String) {
         discordToken = token
+        prefs.edit().putString("token", token).apply()
         gateway.setToken(token)
         loadDiscordProfile(token)
+    }
+
+    /** เปิดแอปครั้งถัดไป: กู้ token และชื่อ Roblox ที่บันทึกไว้ */
+    fun restoreSession() {
+        idleText = prefs.getString("idle", "ไม่ได้เข้าแมพ") ?: "ไม่ได้เข้าแมพ"
+        val savedToken = prefs.getString("token", "") ?: ""
+        if (savedToken.isNotBlank()) {
+            updateToken(savedToken)
+        } else {
+            val savedName = prefs.getString("roblox", "") ?: ""
+            if (savedName.isNotBlank()) connectRoblox(savedName)
+        }
     }
 
     /** หลังล็อกอิน: โหลดโปรไฟล์ Discord และเชื่อม Roblox อัตโนมัติ */
@@ -254,7 +292,7 @@ class MainViewModel : ViewModel() {
 
             if (!robloxName.isNullOrBlank()) {
                 connectRoblox(robloxName)
-                toggleAutoGame(true)
+                toggleAutoGame(prefs.getBoolean("auto", true))
             } else {
                 statusMessage = "ยังไม่ได้เชื่อม Roblox กับ Discord"
             }
