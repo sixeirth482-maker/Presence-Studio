@@ -48,7 +48,7 @@ fun RobloxPresenceCard(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Button(
-                onClick = { viewModel.setRobloxUsername(input) },
+                onClick = { viewModel.connectRoblox(input) },
                 colors = ButtonDefaults.buttonColors(containerColor = Primary)
             ) {
                 Text("ตรวจสอบ")
@@ -94,7 +94,7 @@ fun RobloxPresenceCard(
             }
             Switch(
                 checked = viewModel.autoGameStatus,
-                onCheckedChange = { viewModel.setAutoGameStatus(it) }
+                onCheckedChange = { viewModel.toggleAutoGame(it) }
             )
         }
 

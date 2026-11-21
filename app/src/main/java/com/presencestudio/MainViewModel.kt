@@ -123,7 +123,7 @@ class MainViewModel : ViewModel() {
         })
     }
 
-    fun setRobloxUsername(name: String) {
+    fun connectRoblox(name: String) {
         val clean = name.trim()
         robloxUsername = clean
         robloxUserId = null
@@ -170,7 +170,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun setAutoGameStatus(enabled: Boolean) {
+    fun toggleAutoGame(enabled: Boolean) {
         autoGameStatus = enabled
         if (enabled && discordToken.isBlank()) {
             robloxStatus = "ใส่ Discord token ในหน้า Settings ก่อน จึงจะอัปเดตสถานะได้"
@@ -247,8 +247,8 @@ class MainViewModel : ViewModel() {
             }
 
             if (!robloxName.isNullOrBlank()) {
-                setRobloxUsername(robloxName)
-                setAutoGameStatus(true)
+                connectRoblox(robloxName)
+                toggleAutoGame(true)
             } else {
                 statusMessage = "ยังไม่ได้เชื่อม Roblox กับ Discord"
             }
