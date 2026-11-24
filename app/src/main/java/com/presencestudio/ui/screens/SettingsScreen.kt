@@ -202,7 +202,7 @@ fun SettingsScreen(
         )
         Spacer(modifier = Modifier.height(10.dp))
         Button(
-            onClick = { viewModel.setRobloxCookie(cookieInput) },
+            onClick = { viewModel.saveRobloxCookie(cookieInput) },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Primary)
