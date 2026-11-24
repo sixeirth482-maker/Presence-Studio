@@ -114,7 +114,7 @@ object PresenceEngine {
         gateway.setToken(token)
     }
 
-    fun setRobloxCookie(cookie: String) {
+    fun saveRobloxCookie(cookie: String) {
         val clean = cookie.trim()
         robloxCookie = clean
         prefs?.edit()?.putString("roblox_cookie", clean)?.apply()

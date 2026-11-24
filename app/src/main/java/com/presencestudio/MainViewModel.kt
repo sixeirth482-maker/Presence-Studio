@@ -143,7 +143,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun connectRoblox(name: String) = PresenceEngine.connectRoblox(name)
 
-    fun setRobloxCookie(cookie: String) = PresenceEngine.setRobloxCookie(cookie)
+    fun setRobloxCookie(cookie: String) = PresenceEngine.saveRobloxCookie(cookie)
 
     val robloxCookie: String get() = PresenceEngine.robloxCookie
 
