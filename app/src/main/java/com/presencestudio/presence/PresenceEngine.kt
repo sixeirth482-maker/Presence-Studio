@@ -121,7 +121,7 @@ object PresenceEngine {
         if (autoGame) startLoop()
     }
 
-    fun setAutoGame(enabled: Boolean) {
+    fun enableAutoGame(enabled: Boolean) {
         autoGame = enabled
         prefs?.edit()?.putBoolean("auto", enabled)?.apply()
         val ctx = appContext

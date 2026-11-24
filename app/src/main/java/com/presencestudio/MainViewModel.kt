@@ -143,7 +143,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun connectRoblox(name: String) = PresenceEngine.connectRoblox(name)
 
-    fun toggleAutoGame(enabled: Boolean) = PresenceEngine.setAutoGame(enabled)
+    fun toggleAutoGame(enabled: Boolean) = PresenceEngine.enableAutoGame(enabled)
 
     fun saveIdleText(text: String) = PresenceEngine.saveTexts(text, PresenceEngine.playingText)
 
