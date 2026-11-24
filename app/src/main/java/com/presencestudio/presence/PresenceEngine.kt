@@ -45,6 +45,8 @@ object PresenceEngine {
         private set
     var robloxUsername by mutableStateOf("")
         private set
+    var robloxCookie by mutableStateOf("")
+        private set
     var robloxGame by mutableStateOf<RobloxGameInfo?>(null)
         private set
     var robloxStatus by mutableStateOf("")
@@ -72,6 +74,8 @@ object PresenceEngine {
 
         discordToken = p.getString("token", "") ?: ""
         robloxUsername = p.getString("roblox", "") ?: ""
+        robloxCookie = p.getString("roblox_cookie", "") ?: ""
+        if (robloxCookie.isNotBlank()) RobloxPresence.setCookie(robloxCookie)
         autoGame = p.getBoolean("auto", false)
         idleText = p.getString("idle", DEFAULT_IDLE) ?: DEFAULT_IDLE
         playingText = p.getString("playing", DEFAULT_PLAYING) ?: DEFAULT_PLAYING
@@ -108,6 +112,24 @@ object PresenceEngine {
         discordToken = token
         prefs?.edit()?.putString("token", token)?.apply()
         gateway.setToken(token)
+    }
+
+    fun setRobloxCookie(cookie: String) {
+        val clean = cookie.trim()
+        robloxCookie = clean
+        prefs?.edit()?.putString("roblox_cookie", clean)?.apply()
+        RobloxPresence.setCookie(clean.ifBlank { null })
+        // force refresh next loop
+        lastSignature = null
+        robloxUserId?.let { id ->
+            scope.launch {
+                try {
+                    val info = withContext(Dispatchers.IO) { RobloxPresence.fetch(id) }
+                    robloxGame = info
+                } catch (_: Exception) {
+                }
+            }
+        }
     }
 
     fun connectRoblox(name: String) {

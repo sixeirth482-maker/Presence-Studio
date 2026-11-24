@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.presencestudio.MainViewModel
@@ -29,6 +31,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val hasToken = viewModel.discordToken.isNotBlank()
+    var cookieInput by remember { mutableStateOf(viewModel.robloxCookie) }
+    var showCookie by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -160,6 +164,50 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        Text(
+            text = "Roblox Cookie (optional)",
+            color = TextPrimary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "ถ้าบัญชีรองโชว์แค่กำลังเล่นแต่ไม่มีชื่อแมพ ให้วาง .ROBLOSECURITY ของบัญชีที่เปิดโปรไฟล์เว็บแล้วเห็นชื่อแมพได้ ใช้เฉพาะเครื่องคุณเอง",
+            color = TextTertiary,
+            fontSize = 13.sp
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedTextField(
+            value = cookieInput,
+            onValueChange = { cookieInput = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("วาง .ROBLOSECURITY ตรงนี้", color = TextTertiary) },
+            visualTransformation = if (showCookie) VisualTransformation.None else PasswordVisualTransformation(),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Primary,
+                unfocusedBorderColor = Border,
+                focusedContainerColor = Surface,
+                unfocusedContainerColor = Surface,
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary,
+                cursorColor = Primary
+            ),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Button(
+            onClick = { viewModel.setRobloxCookie(cookieInput) },
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Primary)
+        ) {
+            Text("บันทึก Roblox Cookie", fontWeight = FontWeight.SemiBold)
         }
 
         Spacer(modifier = Modifier.height(32.dp))

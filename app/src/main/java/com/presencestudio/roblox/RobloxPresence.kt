@@ -48,6 +48,13 @@ object RobloxPresence {
     private val json = Json { ignoreUnknownKeys = true }
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
+    @Volatile
+    private var robloxCookie: String? = null
+
+    fun setCookie(cookie: String?) {
+        robloxCookie = cookie?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
     private val gameCache = HashMap<Long, Pair<String?, String?>>()
     private val placeToUniverseCache = HashMap<Long, Long?>()
 
@@ -84,11 +91,15 @@ object RobloxPresence {
             put("userIds", buildJsonArray { add(JsonPrimitive(userId)) })
         }.toString().toRequestBody(jsonType)
 
-        val req = Request.Builder()
+        val reqBuilder = Request.Builder()
             .url("https://presence.roblox.com/v1/presence/users")
             .post(body)
-            .header("User-Agent", "PresenceStudio/1.0")
-            .build()
+            .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36")
+            .header("Accept", "application/json")
+            .header("Origin", "https://www.roblox.com")
+            .header("Referer", "https://www.roblox.com/")
+        robloxCookie?.let { reqBuilder.header("Cookie", ".ROBLOSECURITY=$it") }
+        val req = reqBuilder.build()
 
         client.newCall(req).execute().use { res ->
             if (!res.isSuccessful) throw RuntimeException("presence API ${res.code}")

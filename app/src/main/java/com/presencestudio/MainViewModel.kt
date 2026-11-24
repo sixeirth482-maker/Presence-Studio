@@ -143,6 +143,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun connectRoblox(name: String) = PresenceEngine.connectRoblox(name)
 
+    fun setRobloxCookie(cookie: String) = PresenceEngine.setRobloxCookie(cookie)
+
+    val robloxCookie: String get() = PresenceEngine.robloxCookie
+
     fun toggleAutoGame(enabled: Boolean) = PresenceEngine.enableAutoGame(enabled)
 
     fun saveIdleText(text: String) = PresenceEngine.saveTexts(text, PresenceEngine.playingText)
