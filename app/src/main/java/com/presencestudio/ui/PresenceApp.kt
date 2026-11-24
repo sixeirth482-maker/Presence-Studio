@@ -20,6 +20,7 @@ import com.presencestudio.ui.screens.DiscordLoginScreen
 import com.presencestudio.ui.screens.HomeScreen
 import com.presencestudio.ui.screens.ProfilesScreen
 import com.presencestudio.ui.screens.SettingsScreen
+import com.presencestudio.ui.screens.TemplatesScreen
 import com.presencestudio.ui.theme.*
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
@@ -89,9 +90,7 @@ fun PresenceApp(viewModel: MainViewModel) {
                     viewModel = viewModel,
                     modifier = Modifier.padding(padding)
                 )
-                Screen.Templates -> {
-                    HomeScreen(viewModel = viewModel, modifier = Modifier.padding(padding))
-                }
+                Screen.Templates -> TemplatesScreen(viewModel = viewModel, modifier = Modifier.padding(padding))
                 Screen.Settings -> SettingsScreen(
                     viewModel = viewModel,
                     onLoginClick = { showDiscordLogin = true },
