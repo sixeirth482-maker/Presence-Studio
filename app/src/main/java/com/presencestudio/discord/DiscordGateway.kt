@@ -1,6 +1,7 @@
 package com.presencestudio.discord
 
 import android.util.Log
+import com.presencestudio.util.AppLog
 import kotlinx.coroutines.*
 import okhttp3.*
 import org.json.JSONArray
@@ -85,10 +86,14 @@ class DiscordGateway {
 
     fun setPresence(activityJson: String) {
         pendingPresence.set(activityJson)
+        AppLog.d("setPresence ready=${isReady.get()} running=${isRunning.get()}")
         if (isReady.get()) {
             sendPresence(activityJson)
         } else if (!isRunning.get()) {
+            AppLog.d("gateway not running, starting...")
             start()
+        } else {
+            AppLog.d("gateway connecting, presence queued")
         }
     }
 
@@ -121,6 +126,7 @@ class DiscordGateway {
         webSocket = client!!.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "WebSocket opened")
+                AppLog.d("Discord WS opened")
                 listener?.onStateChanged(ConnectionState.CONNECTED)
             }
 
@@ -145,6 +151,7 @@ class DiscordGateway {
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "Failure", t)
+                AppLog.e("Discord WS failure", t)
                 isReady.set(false)
                 listener?.onError(t.message ?: "Connection failed")
                 listener?.onStateChanged(ConnectionState.ERROR)
@@ -174,6 +181,7 @@ class DiscordGateway {
                     when (t) {
                         "READY" -> {
                             isReady.set(true)
+                            AppLog.d("Discord READY")
                             reconnectDelay = INITIAL_RECONNECT_DELAY
                             val d = json.getJSONObject("d")
                             sessionId = d.optString("session_id")
@@ -228,9 +236,9 @@ class DiscordGateway {
                 .put("token", token)
                 .put("intents", 0)
                 .put("properties", JSONObject()
-                    .put("os", "Android")
-                    .put("browser", "PresenceStudio")
-                    .put("device", "mobile")
+                    .put("os", "Windows")
+                    .put("browser", "Discord Client")
+                    .put("device", "desktop")
                 )
             )
         socket.send(payload.toString())
@@ -264,8 +272,10 @@ class DiscordGateway {
                     .put("afk", false)
                 )
             webSocket?.send(payload.toString())
+            AppLog.d("sendPresence op3 sent")
             listener?.onPresenceUpdated()
         } catch (e: Exception) {
+            AppLog.e("sendPresence failed", e)
             listener?.onError("Failed to set presence: ${e.message}")
         }
     }

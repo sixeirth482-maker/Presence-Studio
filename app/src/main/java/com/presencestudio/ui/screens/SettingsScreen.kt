@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import com.presencestudio.MainViewModel
 import com.presencestudio.data.ConnectionState
 import com.presencestudio.ui.theme.*
+import com.presencestudio.util.AppLog
+import androidx.compose.foundation.text.selection.SelectionContainer
 
 @Composable
 fun SettingsScreen(
@@ -33,6 +35,7 @@ fun SettingsScreen(
     val hasToken = viewModel.discordToken.isNotBlank()
     var cookieInput by remember { mutableStateOf(viewModel.robloxCookie) }
     var showCookie by remember { mutableStateOf(false) }
+    var logText by remember { mutableStateOf(AppLog.snapshot()) }
 
     Column(
         modifier = modifier
@@ -202,7 +205,7 @@ fun SettingsScreen(
         )
         Spacer(modifier = Modifier.height(10.dp))
         Button(
-            onClick = { viewModel.saveRobloxCookie(cookieInput) },
+            onClick = { viewModel.setRobloxCookie(cookieInput) },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Primary)
@@ -245,6 +248,52 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+
+
+        Text(
+            text = "App Logs",
+            color = TextPrimary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "ใช้ดูสาเหตุเมื่อ Discord ไม่ขึ้นสถานะ",
+            color = TextTertiary,
+            fontSize = 13.sp
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Surface)
+        ) {
+            SelectionContainer {
+                Text(
+                    text = logText.ifBlank { "(ยังไม่มี log)" },
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                        .heightIn(min = 120.dp, max = 260.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { logText = AppLog.snapshot() },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp)
+            ) { Text("รีเฟรช Log", color = TextSecondary) }
+            OutlinedButton(
+                onClick = { AppLog.clear(); logText = AppLog.snapshot() },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp)
+            ) { Text("ล้าง Log", color = TextSecondary) }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         Card(
             shape = RoundedCornerShape(12.dp),

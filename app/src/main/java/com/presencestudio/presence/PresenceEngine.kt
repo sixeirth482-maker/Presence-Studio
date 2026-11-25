@@ -10,6 +10,7 @@ import com.presencestudio.discord.DiscordApi
 import com.presencestudio.discord.DiscordGateway
 import com.presencestudio.roblox.RobloxGameInfo
 import com.presencestudio.roblox.RobloxPresence
+import com.presencestudio.util.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -247,45 +248,83 @@ object PresenceEngine {
     }
 
     private suspend fun applyAuto() {
-        if (!autoGame || discordToken.isBlank()) return
+        if (!autoGame || discordToken.isBlank()) {
+            AppLog.w("applyAuto skip: autoGame=$autoGame tokenBlank=${discordToken.isBlank()}")
+            return
+        }
 
         val info = robloxGame
-        val gameName = if (info?.presenceType == 2) (info.gameName ?: info.lastLocation) else null
-        val inGame = !gameName.isNullOrBlank()
+        val inGame = info?.presenceType == 2
+        val gameName = if (inGame) {
+            info?.gameName?.takeIf { it.isNotBlank() }
+                ?: info?.lastLocation?.takeIf { it.isNotBlank() }
+                ?: playingText.ifBlank { "Playing Roblox" }
+        } else null
         val details = if (inGame) gameName.orEmpty() else idleText
         val cover = if (inGame) info?.thumbnailUrl else null
 
+        // signature ไม่ผูกกับรูป เพื่อไม่ให้การแปลงรูปไปบล็อกการส่งสถานะ
         val signature = if (inGame) {
-            "game|$gameName|${cover ?: ""}|$playingText"
+            "game|$details|$playingText"
         } else {
             "idle|$idleText"
         }
-        if (signature == lastSignature) return
+        if (signature == lastSignature) {
+            AppLog.d("applyAuto skip same signature: $signature")
+            return
+        }
         lastSignature = signature
 
-        gateway.setToken(discordToken)
-        gateway.start()
+        AppLog.d("applyAuto inGame=$inGame details=$details")
 
-        val coverMp = cover?.let { url ->
-            withContext(Dispatchers.IO) {
-                DiscordApi.fetchMediaProxy(discordToken, DiscordApi.MEDIA_APP_ID, url)
+        try {
+            gateway.setToken(discordToken)
+            gateway.setStatus("online")
+            gateway.start()
+
+            // ส่งข้อความก่อน (เสถียรสุด) ไม่ใส่รูปก่อน เพื่อให้ Discord ขึ้นแน่นอน
+            val textJson = gateway.buildActivity(
+                name = "Roblox",
+                details = details,
+                state = if (inGame) playingText.ifBlank { "In-game" } else "Roblox",
+                largeImage = "",
+                largeText = "",
+                smallImage = "",
+                smallText = "",
+                applicationId = "",
+                showElapsed = inGame
+            )
+            gateway.setPresence(textJson)
+            presenceActive = true
+            statusMessage = if (inGame) "ส่งสถานะ Discord: กำลังเล่น $details" else "ส่งสถานะ Discord: $details"
+            AppLog.d("Discord presence sent (text): $textJson")
+
+            // ถ้ามีปก แปลงแล้วอัปเดตรอบสอง (ล้มเหลวได้ ไม่กระทบข้อความ)
+            if (!cover.isNullOrBlank()) {
+                val coverMp = withContext(Dispatchers.IO) {
+                    runCatching {
+                        DiscordApi.fetchMediaProxy(discordToken, DiscordApi.MEDIA_APP_ID, cover)
+                    }.onFailure { AppLog.w("media proxy failed: ${it.message}") }.getOrNull()
+                }
+                if (!coverMp.isNullOrBlank()) {
+                    val imgJson = gateway.buildActivity(
+                        name = "Roblox",
+                        details = details,
+                        state = if (inGame) playingText.ifBlank { "In-game" } else "Roblox",
+                        largeImage = coverMp,
+                        largeText = details,
+                        smallImage = "",
+                        smallText = "",
+                        applicationId = DiscordApi.MEDIA_APP_ID,
+                        showElapsed = inGame
+                    )
+                    gateway.setPresence(imgJson)
+                    AppLog.d("Discord presence updated with image")
+                }
             }
+        } catch (e: Exception) {
+            AppLog.e("applyAuto failed", e)
+            statusMessage = "ส่ง Discord ไม่สำเร็จ: ${e.message}"
         }
-
-        val json = gateway.buildActivity(
-            name = "Roblox",
-            details = details,
-            state = if (inGame) playingText else "Roblox",
-            largeImage = coverMp.orEmpty(),
-            largeText = details,
-            smallImage = "",
-            smallText = "Roblox",
-            applicationId = "",
-            showElapsed = inGame
-        )
-
-        gateway.setPresence(json)
-        presenceActive = true
-        statusMessage = if (inGame) "ส่งสถานะ Discord: กำลังเล่น $details" else "ส่งสถานะ Discord: $details"
     }
 }
